@@ -114,6 +114,15 @@ def ShowSavedFiles( imageFile, labelFile ):
         if rc==27:
             return(-1)
         return(0)
+
+def TestForBackCenter( image ):
+    height, width = image.shape[:2]
+    top = int(height/4)
+    bottom = int(3*height/4)
+    left = int((width-height)/2)
+    right = int ((width+height)/2)
+    s = image[top:bottom,left:right].mean()
+    return True if s<5 else False
     
 def AugmentDataset(datasetPath, augmentedDatasetPath):
     """Create augmentation for iamges in the given dataset."""
@@ -189,7 +198,7 @@ def AugmentDataset(datasetPath, augmentedDatasetPath):
                      exit(-1)
 
     # Create augmented images
-    # Each image is rotaged by 90, 180 and 270 degrees,
+    # Each image is rotated by 90, 180 and 270 degrees,
     # and horizontally and vertically reflected.
     # From each image has 6 image versions (including original image).
     
@@ -216,6 +225,12 @@ def AugmentDataset(datasetPath, augmentedDatasetPath):
         
         # Read the input image, and resize it
         image = cv2.imread(os.path.join(datasetPath, elem))
+        
+        # Remove defected balck images
+        blackCenter = TestForBackCenter( image )
+        if blackCenter:
+            continue
+        
         height, width = image.shape[:2]
         fx = resWidth/width
         fy = resHeight/height
