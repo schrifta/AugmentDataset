@@ -8,100 +8,7 @@ class Label:
         self.w = w
         self.h = h
 
-
-def CalcIOU(l1,l2):
-    """Calculate IOU of given labels"""
-    
-    x1s = l1.x-l1.w/2
-    x1e = l1.x+l1.w/2
-    x2s = l2.x-l2.w/2
-    x2e = l2.x+l2.w/2
-    y1s = l1.y-l1.h/2
-    y1e = l1.y+l1.h/2
-    y2s = l2.y-l2.h/2
-    y2e = l2.y+l2.h/2
-    
-    # Calculate horizontal intersection
-    if x1s < x2s:
-        if x1e < x2s:
-            w = 0
-        elif x1e < x2e:
-            w = x1e-x2s            
-        else:
-            w = x2e-x2s
-    elif x1s < x2e:
-        if x1e < x2s:
-            w = 0
-        elif x1e < x2e:
-            w = x1e-x1s
-        else:
-            w = x2e-x1s
-    else:
-        w = 0
-
-    if w==0:
-        return 0
-    
-    # Calculate vertical intersection
-    if y1s < y2s:
-        if y1e < y2s:
-            h = 0
-        elif y1e < y2e:
-            h = y1e-y2s            
-        else:
-            h = y2e-y2s
-    elif y1s < y2e:
-        if y1e < y2s:
-            h = 0
-        elif y1e < y2e:
-            h = y1e-y1s
-        else:
-            h = y2e-y1s
-    else:
-        h = 0
-
-    if h==0:
-        return 0
-    
-    union = l1.w*l1.h + l2.w*l2.h - w*h
-    return w*h / union
-
-def DetectionFitLabels( labels, boxes ):
-    """Decide if the detection fit the labels"""
-    
-    iouThr = 0.75
-    labels_count = len(labels)
-    boxes_count = len(boxes)
-    labels_fit = [0]*labels_count
-    boxes_fit = [0]*boxes_count
-    #for lbl in labels:
-    for i1, lbl in enumerate(labels,start=0):
-        #color = (0,255,0) if lbl.cls=='1' else (0,80,255)
-        #for det in boxes:
-        for i2, det in enumerate(boxes,start=0):
-            # color = (0,160,0) if det.cls[0].item()==1 else (0,0,160)
-            det_lbl = Label(str(int(det.cls[0].item())),
-                            det.xywhn[0][0].item(), det.xywhn[0][1].item(),
-                            det.xywhn[0][2].item(), det.xywhn[0][3].item())
-            if lbl.cls==det_lbl.cls:
-                iou = CalcIOU(lbl,det_lbl)
-                if iou > iouThr:
-                    labels_fit[i1] = labels_fit[i1] + 1
-                    boxes_fit[i2] = boxes_fit[i2] + 1
-    
-    # Count false detections and miss detections
-    miss_count = 0
-    false_count = 0
-    for ifit, fit in enumerate(labels_fit,start=0):
-        if labels[ifit].cls=='1' and fit==0:
-            miss_count = miss_count + 1
-    for ifit, fit in enumerate(boxes_fit,start=0):
-        if boxes[ifit].cls==1 and fit==0:
-            false_count = false_count + 1
-    
-    return miss_count==0 and false_count==0
-
-def GetXmlLables(labelFile):
+def GetXmlLables(labelFile, fx, fy):
     """Read labels from an XML file and return a label list"""
     
     import xml.etree.ElementTree as ET
@@ -117,10 +24,10 @@ def GetXmlLables(labelFile):
     for lbl in root.iter('object'):
         name = lbl.find('name').text
         box = lbl.find('bndbox')
-        xmin_ = int(box.find('xmin').text)
-        ymin_ = int(box.find('ymin').text)
-        xmax_ = int(box.find('xmax').text)
-        ymax_ = int(box.find('ymax').text)
+        xmin_ = fx*int(box.find('xmin').text)
+        ymin_ = fy*int(box.find('ymin').text)
+        xmax_ = fx*int(box.find('xmax').text)
+        ymax_ = fy*int(box.find('ymax').text)
         labels.append([name,xmin_,ymin_,xmax_,ymax_])
         xmin=min(xmin,xmin_)
         xmax=max(xmax,xmax_)
@@ -129,7 +36,7 @@ def GetXmlLables(labelFile):
         boundingBox = [xmin,ymin,xmax,ymax]
     return labels, boundingBox
 
-def CalcRotationROI(boundingBox, imgWidth, imgHeight):
+def Calc90RotationROI(boundingBox, imgWidth, imgHeight):
     """ Calculate the ROI to be rotated, so it will include as much as possible 
     of the given bounding box"""
     
@@ -155,15 +62,16 @@ def RotateLabels( labels, imgWidth, imgHeight, roi, trans ):
     p0 = np.array([[(roi[0]+roi[2])/2],[(roi[1]+roi[3])/2]])
     T = np.array(trans)
     for lbl in labels:
-        if lbl[1]>=roi[0] and lbl[1]<roi[2] and \
-           lbl[2]>=roi[1] and lbl[2]<roi[3] and \
-           lbl[3]>=roi[0] and lbl[3]<roi[2] and \
-           lbl[4]>=roi[1] and lbl[4]<roi[3]:
-            p1 = np.array([[lbl[1]],[lbl[2]]])
-            p2 = np.array([[lbl[3]],[lbl[4]]])
-            tr_p1 = (T@(p1-p0) + p0).tolist()
-            tr_p2 = (T@(p2-p0) + p0).tolist()
+        p1 = np.array([[lbl[1]],[lbl[2]]])
+        p2 = np.array([[lbl[3]],[lbl[4]]])
+        tr_p1 = (T@(p1-p0) + p0).tolist()
+        tr_p2 = (T@(p2-p0) + p0).tolist()
+        if tr_p1[0][0]>=0 and tr_p1[0][0]<=imgWidth and \
+           tr_p1[1][0]>=0 and tr_p1[1][0]<=imgHeight and \
+           tr_p2[0][0]>=0 and tr_p2[0][0]<=imgWidth and \
+           tr_p2[1][0]>=0 and tr_p2[1][0]<=imgHeight:
             tr_labels.append([lbl[0],int(tr_p1[0][0]),int(tr_p1[1][0]), int(tr_p2[0][0]),int(tr_p2[1][0])])
+        
     return tr_labels
 
 def SaveLabelsToText( labels, imgWidth, imgHeight, labelsFile ):
@@ -171,9 +79,9 @@ def SaveLabelsToText( labels, imgWidth, imgHeight, labelsFile ):
         for lbl in labels:
             clss = 1 if lbl[0]=='sperm' else (0 if lbl[0]=='nonsperm' else -1)
             x = (lbl[3]+lbl[1])/2/imgWidth
-            w = (lbl[3]-lbl[1])/imgWidth
+            w = abs(lbl[3]-lbl[1])/imgWidth
             y = (lbl[4]+lbl[2])/2/imgHeight
-            h = (lbl[4]-lbl[2])/imgHeight
+            h = abs(lbl[4]-lbl[2])/imgHeight
             f.write('%s %8.6f %8.6f %8.6f %8.6f\n' % (clss, x, y, w, h))
 
 def ShowSavedFiles( imageFile, labelFile ):
@@ -222,12 +130,15 @@ def AugmentDataset(datasetPath, augmentedDatasetPath):
     #import copy
     import random
     from sys import exit
+    from datetime import datetime
     #from ultralytics import YOLO
     #import torch
     #torch.cuda.is_available()
     #torch.cuda.set_device(0)
     #from xml.etree import ElementTree as ET
     
+    resWidth = 1280
+    resHeight = 960
     showIndicatedImages = False
 
     # Check the given dataset path and create an image file list
@@ -284,7 +195,7 @@ def AugmentDataset(datasetPath, augmentedDatasetPath):
     
     # Create a random distribution list, to assign augumented iamges to the
     # train, val and test directories.
-    jpgQuality = 100
+    jpgQuality = 75
     totalCount = len(imgList)*6
     indexes = list(range(totalCount))
     random.seed(42)
@@ -295,53 +206,71 @@ def AugmentDataset(datasetPath, augmentedDatasetPath):
     for i,j in enumerate(indexes,start=0):
         target[i] = 0 if j<s1 else 1 if j<s2 else 2
     
+    # Create a log file for imaegs not added to the output dataset
+    logFile = open(augmentedDatasetPath+'\\augmentation.log', "w")
+    logFile.writelines([datetime.now().strftime('%d.%m.%y %H:%M:%S'), '   ', datasetPath, '\n'])
+    logFile.close()
+                  
+
     for i, elem in enumerate(imgList,start=0):
         
-        # Read the input image
+        # Read the input image, and resize it
         image = cv2.imread(os.path.join(datasetPath, elem))
+        height, width = image.shape[:2]
+        fx = resWidth/width
+        fy = resHeight/height
+        image = cv2.resize(image, (resWidth, resHeight))
         height, width = image.shape[:2]
         
         # Read the input labels
         xmlFile = os.path.join(datasetPath, elem.replace('.png', '.xml'))
-        labels, boundingBox = GetXmlLables(xmlFile)
+        labels, boundingBox = GetXmlLables(xmlFile, fx, fy)
         if len(labels)==0 or len(boundingBox)==0:
+            logFile = open(augmentedDatasetPath+'\\augmentation.log', "a")
+            logFile.writelines([elem,' is skipped. Empty input labels and bounding box\n'])
+            logFile.close()
             continue
-        roi = CalcRotationROI(boundingBox, width, height)
 
+        roi90 = Calc90RotationROI(boundingBox, width, height)
+        roi0 = [0,0,width,height]
+            
         # original
         idx = 6*i
-        #trans = [[1,0],[0,1]] # identity
-        #rotatedLabels = RotateLabels(labels,width,height,roi,trans)
-        rotatedLabels = labels
+        trans = [[1,0],[0,1]] # identity
+        rotatedLabels = RotateLabels(labels,width,height,roi0,trans)
         
-        if len(rotatedLabels):
-            subdir = subdirs[target[idx]]
-            targetPath = augmentedDatasetPath+"\\"+subdir+"\\images"
-            targetImageFile = os.path.join(targetPath, elem.replace('.png', '.jpg'))
-            targetPath = augmentedDatasetPath+"\\"+subdir+"\\labels"
-            targetLabelFile = os.path.join(targetPath,elem.replace('.png', '.txt'))
+        subdir = subdirs[target[idx]]
+        targetPath = augmentedDatasetPath+"\\"+subdir+"\\images"
+        targetImageFile = os.path.join(targetPath, elem.replace('.png', '.jpg'))
+        targetPath = augmentedDatasetPath+"\\"+subdir+"\\labels"
+        targetLabelFile = os.path.join(targetPath,elem.replace('.png', '.txt'))
     
+        if len(rotatedLabels):
             cv2.imwrite(targetImageFile, image, [cv2.IMWRITE_JPEG_QUALITY,jpgQuality])
             SaveLabelsToText( rotatedLabels, width, height, targetLabelFile )
             
             if showIndicatedImages:
                 if -1==ShowSavedFiles( targetImageFile,targetLabelFile ):
                     break
+        else:
+            logFile = open(augmentedDatasetPath+'\\augmentation.log', "a")
+            logFile.writelines([targetLabelFile,' is skipped. No rotated labels\n'])
+            logFile.close()
         
         # 90 degrees
         trans = [[0,-1],[1,0]] # 90 deg
-        rotatedLabels = RotateLabels(labels,width,height,roi,trans)
+        rotatedLabels = RotateLabels(labels,width,height,roi90,trans)
+
+        subdir = subdirs[target[idx+1]]
+        targetPath = augmentedDatasetPath+"\\"+subdir+"\\images"
+        targetImageFile = os.path.join(targetPath, elem.replace('.png', '-90.jpg'))
+        targetPath = augmentedDatasetPath+"\\"+subdir+"\\labels"
+        targetLabelFile = os.path.join(targetPath,elem.replace('.png', '-90.txt'))
 
         if len(rotatedLabels):
-            subdir = subdirs[target[idx+1]]
-            targetPath = augmentedDatasetPath+"\\"+subdir+"\\images"
-            targetImageFile = os.path.join(targetPath, elem.replace('.png', '-90.jpg'))
-            targetPath = augmentedDatasetPath+"\\"+subdir+"\\labels"
-            targetLabelFile = os.path.join(targetPath,elem.replace('.png', '-90.txt'))
-
             tmpImage = np.zeros((height, width,3), np.uint8)
-            tmpImage[roi[1]:roi[3],roi[0]:roi[2]] = \
-                cv2.rotate(image[roi[1]:roi[3],roi[0]:roi[2]],cv2.ROTATE_90_CLOCKWISE)
+            tmpImage[roi90[1]:roi90[3],roi90[0]:roi90[2]] = \
+                cv2.rotate(image[roi90[1]:roi90[3],roi90[0]:roi90[2]],cv2.ROTATE_90_CLOCKWISE)
     
             cv2.imwrite(targetImageFile, tmpImage, [cv2.IMWRITE_JPEG_QUALITY,jpgQuality])
             SaveLabelsToText( rotatedLabels, width, height, targetLabelFile )
@@ -349,19 +278,23 @@ def AugmentDataset(datasetPath, augmentedDatasetPath):
             if showIndicatedImages:
                 if -1==ShowSavedFiles( targetImageFile,targetLabelFile ):
                     break
+        else:
+            logFile = open(augmentedDatasetPath+'\\augmentation.log', "a")
+            logFile.writelines([targetLabelFile,' is skipped. No rotated labels\n'])
+            logFile.close()
 
 
         # 180 degrees
         trans = [[-1,0],[0,-1]] # 180 deg
-        rotatedLabels = RotateLabels(labels,width,height,roi,trans)
+        rotatedLabels = RotateLabels(labels,width,height,roi0,trans)
+
+        subdir = subdirs[target[idx+2]]
+        targetPath = augmentedDatasetPath+"\\"+subdir+"\\images"
+        targetImageFile = os.path.join(targetPath, elem.replace('.png', '-180.jpg'))
+        targetPath = augmentedDatasetPath+"\\"+subdir+"\\labels"
+        targetLabelFile = os.path.join(targetPath,elem.replace('.png', '-180.txt'))
 
         if len(rotatedLabels):
-            subdir = subdirs[target[idx+2]]
-            targetPath = augmentedDatasetPath+"\\"+subdir+"\\images"
-            targetImageFile = os.path.join(targetPath, elem.replace('.png', '-180.jpg'))
-            targetPath = augmentedDatasetPath+"\\"+subdir+"\\labels"
-            targetLabelFile = os.path.join(targetPath,elem.replace('.png', '-180.txt'))
-    
             tmpImage = cv2.rotate(image, cv2.ROTATE_180)
             cv2.imwrite(targetImageFile, tmpImage, [cv2.IMWRITE_JPEG_QUALITY,jpgQuality])
             SaveLabelsToText( rotatedLabels, width, height, targetLabelFile )
@@ -369,22 +302,26 @@ def AugmentDataset(datasetPath, augmentedDatasetPath):
             if showIndicatedImages:
                 if -1==ShowSavedFiles( targetImageFile,targetLabelFile ):
                     break
+        else:
+            logFile = open(augmentedDatasetPath+'\\augmentation.log', "a")
+            logFile.writelines([targetLabelFile,' is skipped. No rotated labels\n'])
+            logFile.close()
 
         
         # 270 degrees
         trans = [[0,1],[-1,0]] # 270 deg
-        rotatedLabels = RotateLabels(labels,width,height,roi,trans)
+        rotatedLabels = RotateLabels(labels,width,height,roi90,trans)
         
-        if len(rotatedLabels):
-            subdir = subdirs[target[idx+3]]
-            targetPath = augmentedDatasetPath+"\\"+subdir+"\\images"
-            targetImageFile = os.path.join(targetPath, elem.replace('.png', '-270.jpg'))
-            targetPath = augmentedDatasetPath+"\\"+subdir+"\\labels"
-            targetLabelFile = os.path.join(targetPath,elem.replace('.png', '-270.txt'))
+        subdir = subdirs[target[idx+3]]
+        targetPath = augmentedDatasetPath+"\\"+subdir+"\\images"
+        targetImageFile = os.path.join(targetPath, elem.replace('.png', '-270.jpg'))
+        targetPath = augmentedDatasetPath+"\\"+subdir+"\\labels"
+        targetLabelFile = os.path.join(targetPath,elem.replace('.png', '-270.txt'))
 
+        if len(rotatedLabels):
             tmpImage = np.zeros((height, width,3), np.uint8)
-            tmpImage[roi[1]:roi[3],roi[0]:roi[2]] = \
-                cv2.rotate(image[roi[1]:roi[3],roi[0]:roi[2]],cv2.ROTATE_90_COUNTERCLOCKWISE)
+            tmpImage[roi90[1]:roi90[3],roi90[0]:roi90[2]] = \
+                cv2.rotate(image[roi90[1]:roi90[3],roi90[0]:roi90[2]],cv2.ROTATE_90_COUNTERCLOCKWISE)
 
             cv2.imwrite(targetImageFile, tmpImage, [cv2.IMWRITE_JPEG_QUALITY,jpgQuality])
             SaveLabelsToText( rotatedLabels, width, height, targetLabelFile )
@@ -392,18 +329,22 @@ def AugmentDataset(datasetPath, augmentedDatasetPath):
             if showIndicatedImages:
                 if -1==ShowSavedFiles( targetImageFile,targetLabelFile ):
                     break
+        else:
+            logFile = open(augmentedDatasetPath+'\\augmentation.log', "a")
+            logFile.writelines([targetLabelFile,' is skipped. No rotated labels\n'])
+            logFile.close()
 
         # horizontal reflection
         trans = [[-1,0],[0,1]] # x reflectin
-        rotatedLabels = RotateLabels(labels,width,height,roi,trans)
+        rotatedLabels = RotateLabels(labels,width,height,roi0,trans)
+
+        subdir = subdirs[target[idx+4]]
+        targetPath = augmentedDatasetPath+"\\"+subdir+"\\images"
+        targetImageFile = os.path.join(targetPath, elem.replace('.png', '-hor.jpg'))
+        targetPath = augmentedDatasetPath+"\\"+subdir+"\\labels"
+        targetLabelFile = os.path.join(targetPath,elem.replace('.png', '-hor.txt'))
 
         if len(rotatedLabels):
-            subdir = subdirs[target[idx+4]]
-            targetPath = augmentedDatasetPath+"\\"+subdir+"\\images"
-            targetImageFile = os.path.join(targetPath, elem.replace('.png', '-hor.jpg'))
-            targetPath = augmentedDatasetPath+"\\"+subdir+"\\labels"
-            targetLabelFile = os.path.join(targetPath,elem.replace('.png', '-hor.txt'))
-
             tmpImage = cv2.flip(image, 1 )
             cv2.imwrite(targetImageFile, tmpImage, [cv2.IMWRITE_JPEG_QUALITY,jpgQuality])
             SaveLabelsToText( rotatedLabels, width, height, targetLabelFile )
@@ -411,18 +352,22 @@ def AugmentDataset(datasetPath, augmentedDatasetPath):
             if showIndicatedImages:
                 if -1==ShowSavedFiles( targetImageFile,targetLabelFile ):
                     break
+        else:
+            logFile = open(augmentedDatasetPath+'\\augmentation.log', "a")
+            logFile.writelines([targetLabelFile,' is skipped. No rotated labels\n'])
+            logFile.close()
         
         # vertical reflection
         trans = [[1,0],[0,-1]] # y reflection
-        rotatedLabels = RotateLabels(labels,width,height,roi,trans)
+        rotatedLabels = RotateLabels(labels,width,height,roi0,trans)
+
+        subdir = subdirs[target[idx+5]]
+        targetPath = augmentedDatasetPath+"\\"+subdir+"\\images"
+        targetImageFile = os.path.join(targetPath, elem.replace('.png', '-ver.jpg'))
+        targetPath = augmentedDatasetPath+"\\"+subdir+"\\labels"
+        targetLabelFile = os.path.join(targetPath,elem.replace('.png', '-ver.txt'))
 
         if len(rotatedLabels):
-            subdir = subdirs[target[idx+5]]
-            targetPath = augmentedDatasetPath+"\\"+subdir+"\\images"
-            targetImageFile = os.path.join(targetPath, elem.replace('.png', '-ver.jpg'))
-            targetPath = augmentedDatasetPath+"\\"+subdir+"\\labels"
-            targetLabelFile = os.path.join(targetPath,elem.replace('.png', '-ver.txt'))
-
             tmpImage = cv2.flip(image, 0 )
             cv2.imwrite(targetImageFile, tmpImage, [cv2.IMWRITE_JPEG_QUALITY,jpgQuality])
             SaveLabelsToText( rotatedLabels, width, height, targetLabelFile )
@@ -430,9 +375,18 @@ def AugmentDataset(datasetPath, augmentedDatasetPath):
             if showIndicatedImages:
                 if -1==ShowSavedFiles( targetImageFile,targetLabelFile ):
                     break
+        else:
+            logFile = open(augmentedDatasetPath+'\\augmentation.log', "a")
+            logFile.writelines([targetLabelFile,' is skipped. No rotated labels\n'])
+            logFile.close()
 
+    logFile = open(augmentedDatasetPath+'\\augmentation.log', "a")
+    logFile.writelines([datetime.now().strftime('%d.%m.%y %H:%M:%S'), '   finished'])
+    logFile.close()
 
-datasetPath = 'C:\Projects\Cytobit\Spr#12-1\Spr#12+iteration10'
-augmentedDatasetPath = 'D:\CytobitData\DataSets\My\Spr#12-1'
+datasetPath = 'C:\\Projects\\Cytobit\\Spr#12-1\\Spr#12+iteration10'
+augmentedDatasetPath = 'D:\\CytobitData\\DataSets\\My\Spr#12-1-my'
+#datasetPath = 'C:\\Projects\\Cytobit\\Spr#12-1\\tmp'
+#augmentedDatasetPath = 'D:\\CytobitData\\DataSets\\My\\tmp'
 if __name__ == "__main__":
     AugmentDataset(datasetPath, augmentedDatasetPath)
