@@ -229,6 +229,9 @@ def AugmentDataset(datasetPath, augmentedDatasetPath):
         # Remove defected balck images
         blackCenter = TestForBackCenter( image )
         if blackCenter:
+            logFile = open(augmentedDatasetPath+'\\augmentation.log', "a")
+            logFile.writelines([elem,' is skipped. Black image cener\n'])
+            logFile.close()
             continue
         
         height, width = image.shape[:2]
