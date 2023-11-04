@@ -403,7 +403,7 @@ def AugmentDataset(datasetPath, augmentedDatasetPath):
     logFile.close()
 
 datasetPath = 'C:\\Projects\\Cytobit\\Spr#12-1\\Spr#12+iteration10'
-augmentedDatasetPath = 'D:\\CytobitData\\DataSets\\My\Spr#12-1-my'
+augmentedDatasetPath = 'D:\\CytobitData\\DataSets\\My\Spr#12-2-my'
 #datasetPath = 'C:\\Projects\\Cytobit\\Spr#12-1\\tmp'
 #augmentedDatasetPath = 'D:\\CytobitData\\DataSets\\My\\tmp'
 if __name__ == "__main__":
