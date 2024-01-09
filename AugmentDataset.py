@@ -402,9 +402,18 @@ def AugmentDataset(datasetPath, augmentedDatasetPath):
     logFile.writelines([datetime.now().strftime('%d.%m.%y %H:%M:%S'), '   finished'])
     logFile.close()
 
-datasetPath = 'C:\\Projects\\Cytobit\\Spr#12-1\\Spr#12+iteration10'
-augmentedDatasetPath = 'D:\\CytobitData\\DataSets\\My\Spr#12-2-my'
+#datasetPath = 'C:\\Projects\\Cytobit\\Spr#12-1\\Spr#12+iteration10'
+#datasetPath = 'C:\\Projects\\Cytobit\\Spr#12-1\\Spr#10+iteration12+iteration12-3'
+#augmentedDatasetPath = 'D:\\CytobitData\\DataSets\\My\Spr#12-3-my'
+
 #datasetPath = 'C:\\Projects\\Cytobit\\Spr#12-1\\tmp'
 #augmentedDatasetPath = 'D:\\CytobitData\\DataSets\\My\\tmp'
+
+# datasetPath = 'C:\\Projects\\Cytobit\\SprX20#01\\CollectedFrames'
+# augmentedDatasetPath = 'D:\\CytobitData\\DataSets\\My\\SprX20#1+X20-single'
+
+datasetPath = 'C:\\Projects\\Cytobit\\SprX20#02\\CollectedFrames'
+augmentedDatasetPath = 'D:\\CytobitData\\DataSets\\My\\SprX20#2'
+
 if __name__ == "__main__":
     AugmentDataset(datasetPath, augmentedDatasetPath)
